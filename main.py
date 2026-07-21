@@ -3,53 +3,16 @@ import pandas as pd
 import plotly.graph_objects as go
 import re
 import os
-import glob
+from utils import find_data_file, load_data, get_age_columns
 
 st.set_page_config(page_title="지역별 인구 구조 대시보드", layout="wide")
 
 st.title("📊 지역별 연령별 인구 구조 대시보드")
 st.caption("행정안전부 주민등록 연령별 인구현황 데이터 기반")
+st.info("👈 왼쪽 사이드바 하단에서 '유사지역 Top5' 페이지로 이동할 수 있습니다.")
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
-
-def find_data_file():
-    exact_candidates = [
-        "202606_202606_연령별인구현황_월간.csv",
-        "202606_202606_yeonryeongbyeolinguhyeonhwang_weolgan.csv",
-    ]
-    for name in exact_candidates:
-        path = os.path.join(APP_DIR, name)
-        if os.path.exists(path):
-            return path
-
-    csv_files = glob.glob(os.path.join(APP_DIR, "*.csv"))
-    if csv_files:
-        return csv_files[0]
-
-    return None
-
-@st.cache_data
-def load_data(path):
-    df = pd.read_csv(
-        path,
-        encoding="cp949",
-        engine="python",
-        on_bad_lines="skip",
-        thousands=","
-    )
-    df["행정구역명"] = df["행정구역"].apply(lambda x: re.sub(r"\s*\(.*\)$", "", str(x)).strip())
-    return df
-
-def get_age_columns(df, gender="계"):
-    pattern = re.compile(rf"_{gender}_\d+세$|_{gender}_100세 이상$")
-    cols = [c for c in df.columns if pattern.search(c)]
-    cols_sorted = sorted(
-        cols,
-        key=lambda c: 100 if "100세" in c else int(re.search(r"(\d+)세$", c).group(1))
-    )
-    return cols_sorted
-
-data_path = find_data_file()
+data_path = find_data_file(APP_DIR)
 
 if data_path is None:
     st.error(
@@ -77,25 +40,28 @@ if not filtered_regions:
     filtered_regions = region_list
 
 selected_region = st.sidebar.selectbox(
-    "지역 선택 (목록에서 선택)",
+    "지역 선택 (목록에서 선택, 읍면동 포함)",
     options=filtered_regions,
     index=0
 )
 
+st.session_state["selected_region"] = selected_region
+st.session_state["data_path"] = data_path
+
 gender_option = st.sidebar.radio("성별 구분", ["전체(계)", "남성", "여성", "남녀 비교"])
 
-row = df[df["행정구역명"] == selected_region]
+matched_rows = df.index[df["행정구역명"] == selected_region].tolist()
 
-if row.empty:
+if not matched_rows:
     st.error("선택한 지역의 데이터를 찾을 수 없습니다.")
     st.stop()
 
-row = row.iloc[0]
+target_idx = matched_rows[0]
+row = df.loc[target_idx]
 
 def build_age_series(gender_key):
     age_cols = get_age_columns(df, gender_key)
-    ages = []
-    pops = []
+    ages, pops = [], []
     for c in age_cols:
         m = re.search(r"(\d+)세$", c)
         age = 100 if "100세" in c else int(m.group(1))
@@ -136,9 +102,9 @@ col1, col2, col3 = st.columns(3)
 total_col = "2026년06월_계_총인구수"
 col1.metric("총인구수", f"{int(row[total_col]):,} 명")
 
-age_cols_total = get_age_columns(df, "계")
-ages_all = [100 if "100세" in c else int(re.search(r"(\d+)세$", c).group(1)) for c in age_cols_total]
-pops_all = [row[c] for c in age_cols_total]
+age_cols_gye = get_age_columns(df, "계")
+ages_all = [100 if "100세" in c else int(re.search(r"(\d+)세$", c).group(1)) for c in age_cols_gye]
+pops_all = [row[c] for c in age_cols_gye]
 total_pop = sum(pops_all)
 avg_age = sum(a * p for a, p in zip(ages_all, pops_all)) / total_pop if total_pop > 0 else 0
 col2.metric("평균 연령(추정)", f"{avg_age:.1f} 세")
