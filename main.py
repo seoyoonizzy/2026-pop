@@ -9,7 +9,7 @@ st.set_page_config(page_title="지역별 인구 구조 대시보드", layout="wi
 st.title("📊 지역별 연령별 인구 구조 대시보드")
 st.caption("행정안전부 주민등록 연령별 인구현황 데이터 기반")
 
-DATA_FILE = "202606_202606_yeonryeongbyeolinguhyeonhwang_weolgan.csv"
+DATA_FILE = "202606_202606_연령별인구현황_월간.csv"
 
 @st.cache_data
 def load_data(path):
