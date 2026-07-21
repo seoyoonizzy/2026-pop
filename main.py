@@ -3,13 +3,30 @@ import pandas as pd
 import plotly.graph_objects as go
 import re
 import os
+import glob
 
 st.set_page_config(page_title="지역별 인구 구조 대시보드", layout="wide")
 
 st.title("📊 지역별 연령별 인구 구조 대시보드")
 st.caption("행정안전부 주민등록 연령별 인구현황 데이터 기반")
 
-DATA_FILE = "202606_202606_연령별인구현황_월간.csv"
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def find_data_file():
+    exact_candidates = [
+        "202606_202606_연령별인구현황_월간.csv",
+        "202606_202606_yeonryeongbyeolinguhyeonhwang_weolgan.csv",
+    ]
+    for name in exact_candidates:
+        path = os.path.join(APP_DIR, name)
+        if os.path.exists(path):
+            return path
+
+    csv_files = glob.glob(os.path.join(APP_DIR, "*.csv"))
+    if csv_files:
+        return csv_files[0]
+
+    return None
 
 @st.cache_data
 def load_data(path):
@@ -32,14 +49,21 @@ def get_age_columns(df, gender="계"):
     )
     return cols_sorted
 
-if not os.path.exists(DATA_FILE):
-    st.error(f"데이터 파일을 찾을 수 없습니다: {DATA_FILE}\n앱 코드와 같은 폴더에 CSV 파일을 넣어주세요.")
+data_path = find_data_file()
+
+if data_path is None:
+    st.error(
+        "데이터 파일을 찾을 수 없습니다.\n"
+        "app.py와 같은 폴더에 인구현황 CSV 파일을 넣어주세요.\n"
+        f"현재 폴더: {APP_DIR}"
+    )
     st.stop()
 
-df = load_data(DATA_FILE)
+df = load_data(data_path)
 region_list = df["행정구역명"].dropna().unique().tolist()
 
 st.sidebar.header("🔍 지역 선택")
+st.sidebar.caption(f"불러온 파일: {os.path.basename(data_path)}")
 
 search_text = st.sidebar.text_input("지역명 검색 (직접 입력)", value="")
 
